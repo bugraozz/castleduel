@@ -1,7 +1,7 @@
 # Backend Foundation Tasks
 
 ## BACK-01: Initialize Go API and Worker Applications
-**Implementation status:** In progress. API and worker startup, typed configuration, bounded PostgreSQL/Redis clients, structured logs, health/readiness endpoints, and shutdown handling are implemented. PostgreSQL/Redis integration tests and a Linux SIGTERM smoke test verified readiness and graceful shutdown. `pgx`, `x/crypto`, and Go were upgraded after vulnerability scanning; reachable-code scan is clean. Migration infrastructure remains blocked on FOUND-04/FOUND-05, and the GitHub Actions run remains unverified.
+**Implementation status:** In progress. API and worker startup, typed configuration, bounded PostgreSQL/Redis clients, structured logs, health/readiness endpoints, and shutdown handling are implemented. PostgreSQL/Redis integration tests and a Linux SIGTERM smoke test verified readiness and graceful shutdown. The latest clean clone passes `go mod tidy -diff` and Go tests. `pgx`, `x/crypto`, and Go were upgraded after vulnerability scanning; reachable-code scan is clean. Migration infrastructure remains blocked on FOUND-04/FOUND-05, and the GitHub Actions run remains unverified.
 **Priority:** Critical · **Phase:** 1 Identity and app shell · **Component:** Backend · **Effort:** M · **Parallelism:** Central backend owner
 
 **Description:** Create the deployable API and worker entry points with clean module boundaries. **Business Requirements:** PRD §9; Architecture §2-4. **Technical Requirements:** Typed configuration, graceful shutdown, health/readiness endpoints, dependency injection and transport/domain separation. **Dependencies:** FOUND-01, FOUND-03.
