@@ -1,7 +1,7 @@
 # Project Foundation Tasks
 
 ## FOUND-01: Establish Repository Structure and Toolchain
-**Implementation status:** In progress. The root Git repository is initialized, the mobile scaffold's initial commit is preserved on `mobile-history`, and a root clone is being validated. Node/npm/Go and PostgreSQL/Redis image versions are pinned. The canonical remote was not supplied, so `castleduello.local/backend` remains provisional and no origin is configured.
+**Implementation status:** In progress. The root Git repository is initialized and a clean clone passed npm install, mobile checks, Go tests/vet/build, and Compose validation. The mobile scaffold's initial commit is preserved on `mobile-history`. LF attributes are set for Go files so Windows checkouts pass `go mod tidy -diff`. The canonical remote was not supplied, so `castleduello.local/backend` remains provisional and no origin is configured.
 **Priority:** Critical · **Phase:** 0 Foundation · **Component:** Infrastructure · **Effort:** M · **Parallelism:** Central coordination
 
 **Description:** Inspect the existing repository, retain the eight source documents, decide a mobile/backend/admin workspace structure, and pin supported toolchains. **Business Requirements:** PRD §5, Roadmap §2 Epic 1. **Technical Requirements:** Record the modular-monolith decision and package boundaries; do not introduce app features. **Dependencies:** None.
@@ -21,7 +21,7 @@
 **Acceptance Criteria:** Every listed release-blocking choice has an approved value or a tracked decision gate; active matches can be tied to a rules version. **Testing Requirements:** Decision-to-contract review and ranked policy examples. **Completion Definition:** Product and engineering owners sign off the ADR index; unresolved legal questions block store submission.
 
 ## FOUND-03: Create Local Development and CI Baseline
-**Implementation status:** In progress. Digest-pinned Compose services, CI dependency/vulnerability, license inventory, and Gitleaks scans are configured. Local Compose and actionlint checks pass; Gitleaks found no leaks and the Go reachable-code scan is clean. npm still reports 12 moderate `glob`/`minimatch` advisories; its suggested fix downgrades Expo SDK 58 to 53, so it was not applied. License inventories report first-party `UNLICENSED` metadata; no legal allowlist was invented. A GitHub Actions run and legal license policy approval remain outstanding.
+**Implementation status:** In progress. Digest-pinned Compose services, CI dependency/vulnerability, license inventory, and Gitleaks scans are configured. Clean-clone Compose and actionlint checks pass; Gitleaks found no leaks, Go reachable-code scan is clean, and `npm audit --audit-level=high` passes. npm still reports 12 moderate `glob`/`minimatch` advisories; its suggested fix downgrades Expo SDK 58 to 53, so it was not applied. License inventories report first-party `UNLICENSED` metadata; no legal allowlist was invented. A GitHub Actions run and legal license policy approval remain outstanding.
 **Priority:** Critical · **Phase:** 0 Foundation · **Component:** Infrastructure · **Effort:** L · **Parallelism:** Can parallelize with design after FOUND-01
 
 **Description:** Make local dependencies and quality checks reproducible. **Business Requirements:** Roadmap Epic 1; Architecture §13. **Technical Requirements:** Docker Compose for PostgreSQL/Redis, health checks, non-production config, migration/test commands, CI formatting/lint/static/unit checks. **Dependencies:** FOUND-01.
