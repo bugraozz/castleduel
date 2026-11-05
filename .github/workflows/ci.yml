@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+        env:
+          POSTGRES_USER: castle_duello
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: castle_duello
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U castle_duello -d castle_duello"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:02f2cc4882f8bf87c79a220ac958f58c700bdec0dfb9b9ea61b62fb0e8f1bfcf
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/backend/go.mod
+          cache-dependency-path: services/backend/go.sum
+      - name: Check formatting
+        working-directory: services/backend
+        shell: bash
+        run: test -z "$(gofmt -l .)"
+      - name: Run unit and integration tests
+        working-directory: services/backend
+        env:
+          APP_ENV: test
+          DATABASE_URL: "postgres://castle_duello:ci-only-password@localhost:5432/castle_duello?sslmode=disable"
+          REDIS_URL: redis://localhost:6379/0
+        run: go test -race ./...
+      - name: Run static analysis
+        working-directory: services/backend
+        run: go vet ./...
+      - name: Verify API and worker startup and shutdown
+        working-directory: services/backend
+        shell: bash
+        env:
+          APP_ENV: test
+          API_ADDR: 127.0.0.1:8080
+          DATABASE_URL: "postgres://castle_duello:ci-only-password@localhost:5432/castle_duello?sslmode=disable"
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          set -euo pipefail
+          api="$RUNNER_TEMP/kale-api"
+          worker="$RUNNER_TEMP/kale-worker"
+          api_log="$RUNNER_TEMP/kale-api.log"
+          worker_log="$RUNNER_TEMP/kale-worker.log"
+          go build -o "$api" ./cmd/api
+          go build -o "$worker" ./cmd/worker
+
+          "$api" >"$api_log" 2>&1 &
+          api_pid=$!
+          "$worker" >"$worker_log" 2>&1 &
+          worker_pid=$!
+          cleanup() {
+            kill -TERM "$api_pid" "$worker_pid" 2>/dev/null || true
+            wait "$api_pid" "$worker_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/health/ready >/dev/null; then
+              break
+            fi
+            if ! kill -0 "$api_pid" 2>/dev/null || ! kill -0 "$worker_pid" 2>/dev/null; then
+              cat "$api_log" "$worker_log"
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8080/health/live >/dev/null
+          curl --fail --silent http://127.0.0.1:8080/health/ready >/dev/null
+          grep -q '"msg":"worker ready"' "$worker_log"
+          kill -TERM "$api_pid" "$worker_pid"
+          api_status=0
+          worker_status=0
+          wait "$api_pid" || api_status=$?
+          wait "$worker_pid" || worker_status=$?
+          trap - EXIT
+          if [[ "$api_status" -ne 0 || "$worker_status" -ne 0 ]]; then
+            cat "$api_log" "$worker_log"
+            exit 1
+          fi
+          grep -q '"msg":"API stopped gracefully"' "$api_log"
+          grep -q '"msg":"worker stopped gracefully"' "$worker_log"
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install mobile dependencies
+        run: npm ci
+      - name: Type check
+        run: npm run mobile:typecheck
+      - name: Lint
+        run: npm run mobile:lint
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/backend/go.mod
+          cache-dependency-path: services/backend/go.sum
+      - name: Scan Go source for reachable vulnerabilities
+        working-directory: services/backend
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+      - name: Inventory Go dependency licenses
+        working-directory: services/backend
+        run: go run github.com/google/go-licenses@v1.6.0 report --ignore castleduello.local/backend ./cmd/api ./cmd/worker > "$RUNNER_TEMP/go-licenses.csv"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install npm workspaces
+        run: npm ci
+      - name: Scan npm dependencies (block high and critical advisories)
+        run: npm audit --audit-level=high
+      - name: Inventory mobile dependency licenses
+        working-directory: apps/mobile
+        run: npx --yes --package=license-checker-rseidelsohn@5.0.1 license-checker-rseidelsohn --json --out "$RUNNER_TEMP/npm-licenses.json"
+      - name: Scan repository for secrets
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/repo" zricethezav/gitleaks:v8.24.2 detect --source=/repo --redact --no-banner
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dependency-license-inventories
+          path: |
+            ${{ runner.temp }}/go-licenses.csv
+            ${{ runner.temp }}/npm-licenses.json

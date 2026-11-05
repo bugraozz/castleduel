@@ -1,0 +1,16 @@
+{
+  "name": "castle-duello",
+  "private": true,
+  "packageManager": "npm@11.2.0",
+  "workspaces": [
+    "apps/mobile"
+  ],
+  "scripts": {
+    "mobile:start": "npm run start --workspace @kale-duello/mobile",
+    "mobile:typecheck": "npm run typecheck --workspace @kale-duello/mobile",
+    "mobile:lint": "npm run lint --workspace @kale-duello/mobile",
+    "backend:test": "go -C services/backend test ./...",
+    "backend:vet": "go -C services/backend vet ./...",
+    "backend:build": "go -C services/backend build ./cmd/api ./cmd/worker"
+  }
+}
